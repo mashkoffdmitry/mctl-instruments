@@ -1,5 +1,7 @@
-node_modules
-dist
+**/node_modules
+**/dist
+**/dist-demo
 .git
 .github
 *.md
+.DS_Store

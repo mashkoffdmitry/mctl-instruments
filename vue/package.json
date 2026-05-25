@@ -1,0 +1,39 @@
+{
+  "name": "@mashkovd/instruments-vue",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Vue 3 component for a broker instrument catalog & card (forex/CFD/crypto) on top of an mctl-instruments /v1 API.",
+  "sideEffects": ["**/*.css"],
+  "main": "./dist/instruments-vue.umd.cjs",
+  "module": "./dist/instruments-vue.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/instruments-vue.mjs",
+      "require": "./dist/instruments-vue.umd.cjs"
+    },
+    "./style.css": "./dist/instruments-vue.css"
+  },
+  "files": ["dist", "README.md"],
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -p tsconfig.json --noEmit && vite build",
+    "build:demo": "vite build --config vite.demo.config.ts",
+    "type-check": "vue-tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vite-plugin-dts": "^4.3.0",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.1.10"
+  }
+}

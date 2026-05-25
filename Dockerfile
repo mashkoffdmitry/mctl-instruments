@@ -1,22 +1,31 @@
-# ---- build stage ----
-FROM node:22.11-alpine3.20 AS build
+# ---- build proxy ----
+FROM node:22.11-alpine3.20 AS build-proxy
 WORKDIR /app
 COPY package*.json tsconfig.json ./
 RUN npm ci
 COPY src ./src
 RUN npm run build
 
-# ---- runtime stage ----
+# ---- build demo SPA ----
+FROM node:22.11-alpine3.20 AS build-demo
+WORKDIR /vue
+COPY vue/package*.json ./
+RUN npm ci
+COPY vue/ ./
+RUN npm run build:demo
+
+# ---- runtime ----
 FROM node:22.11-alpine3.20
 RUN apk add --no-cache tini
 ENV NODE_ENV=production
 ENV PORT=8787
 WORKDIR /app
 
-# No runtime npm dependencies — ship the compiled output + package.json
-# (needed for "type": "module").
+# No runtime npm dependencies — ship compiled output + package.json
+# (needed for "type": "module") + the static demo.
 COPY package.json ./
-COPY --from=build /app/dist ./dist
+COPY --from=build-proxy /app/dist ./dist
+COPY --from=build-demo /vue/dist-demo ./public/demo
 
 RUN addgroup -S app && adduser -S -G app -h /home/app app && chown -R app:app /app
 USER app

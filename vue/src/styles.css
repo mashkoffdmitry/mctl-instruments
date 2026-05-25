@@ -1,0 +1,118 @@
+/* Design tokens mirror the @mctlhq/* naming so this is a drop-in swap for
+   @mctlhq/css later; values are vendored here to keep the widget self-contained
+   (no private-registry auth needed at build time). */
+.mi-root {
+  --mctl-bg: #ffffff;
+  --mctl-surface: #f7f8fa;
+  --mctl-border: #e2e6ea;
+  --mctl-text: #1a1f29;
+  --mctl-text-muted: #66707d;
+  --mctl-accent: #2f6df6;
+  --mctl-ok: #1a9e57;
+  --mctl-info: #2f6df6;
+  --mctl-warn: #c97a12;
+  --mctl-danger: #d23b3b;
+  --mctl-muted: #8a939f;
+  --mctl-radius: 10px;
+  --mctl-gap: 12px;
+
+  color: var(--mctl-text);
+  background: var(--mctl-bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.mi-root.mi-theme-dark {
+  --mctl-bg: #11151b;
+  --mctl-surface: #1a2029;
+  --mctl-border: #2a313c;
+  --mctl-text: #e8ecf1;
+  --mctl-text-muted: #9aa6b3;
+}
+@media (prefers-color-scheme: dark) {
+  .mi-root:not(.mi-theme-light) {
+    --mctl-bg: #11151b;
+    --mctl-surface: #1a2029;
+    --mctl-border: #2a313c;
+    --mctl-text: #e8ecf1;
+    --mctl-text-muted: #9aa6b3;
+  }
+}
+.mi-root *,
+.mi-root *::before,
+.mi-root *::after { box-sizing: border-box; }
+
+.mi-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mctl-gap); margin-bottom: 16px; }
+.mi-head__title { font-size: 20px; margin: 0; margin-right: auto; }
+.mi-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.mi-input, .mi-select {
+  padding: 7px 10px; border: 1px solid var(--mctl-border); border-radius: var(--mctl-radius);
+  background: var(--mctl-bg); color: var(--mctl-text); font-size: 14px;
+}
+.mi-input { min-width: 180px; }
+.mi-check { display: inline-flex; align-items: center; gap: 6px; color: var(--mctl-text-muted); }
+
+.mi-table { width: 100%; border-collapse: collapse; }
+.mi-table th { text-align: left; font-size: 12px; color: var(--mctl-text-muted); padding: 8px 10px; border-bottom: 1px solid var(--mctl-border); }
+.mi-num { text-align: right; font-variant-numeric: tabular-nums; }
+.mi-row { cursor: pointer; }
+.mi-row td { padding: 10px; border-bottom: 1px solid var(--mctl-border); vertical-align: middle; }
+.mi-row:hover { background: var(--mctl-surface); }
+.mi-row:focus-visible { outline: 2px solid var(--mctl-accent); outline-offset: -2px; }
+.mi-row__name { color: var(--mctl-text-muted); margin: 0 8px; }
+
+.mi-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--mctl-surface); border: 1px solid var(--mctl-border); color: var(--mctl-text-muted); font-size: 12px; }
+.mi-chip--sm { font-size: 11px; padding: 0 6px; }
+.mi-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+.mi-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.mi-badge__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.mi-badge--ok { color: var(--mctl-ok); background: color-mix(in srgb, var(--mctl-ok) 12%, transparent); }
+.mi-badge--info { color: var(--mctl-info); background: color-mix(in srgb, var(--mctl-info) 12%, transparent); }
+.mi-badge--warn { color: var(--mctl-warn); background: color-mix(in srgb, var(--mctl-warn) 14%, transparent); }
+.mi-badge--danger { color: var(--mctl-danger); background: color-mix(in srgb, var(--mctl-danger) 12%, transparent); }
+.mi-badge--muted { color: var(--mctl-muted); background: color-mix(in srgb, var(--mctl-muted) 14%, transparent); }
+
+.mi-back { background: none; border: none; color: var(--mctl-accent); cursor: pointer; font-size: 14px; padding: 4px 0; margin-bottom: 12px; }
+.mi-back:focus-visible { outline: 2px solid var(--mctl-accent); }
+
+.mi-detail__hero { margin-bottom: 16px; }
+.mi-detail__title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.mi-detail__title h2 { margin: 0; font-size: 24px; }
+.mi-detail__name { color: var(--mctl-text-muted); }
+.mi-detail__source { color: var(--mctl-text-muted); font-size: 12px; margin: 8px 0 0; }
+.mi-detail__banner { margin: 10px 0 0; padding: 8px 12px; border-radius: var(--mctl-radius); font-size: 13px; }
+.mi-detail__banner--open_delayed { background: color-mix(in srgb, var(--mctl-info) 12%, transparent); }
+.mi-detail__banner--close_only, .mi-detail__banner--holiday_modified { background: color-mix(in srgb, var(--mctl-warn) 14%, transparent); }
+.mi-detail__banner--halt_or_break, .mi-detail__banner--stale_data { background: color-mix(in srgb, var(--mctl-danger) 12%, transparent); }
+.mi-detail__banner--market_closed { background: var(--mctl-surface); }
+
+.mi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--mctl-gap); margin-bottom: 16px; }
+.mi-card { border: 1px solid var(--mctl-border); border-radius: var(--mctl-radius); padding: 12px 14px; background: var(--mctl-surface); }
+.mi-card h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mctl-text-muted); }
+
+.mi-kv { margin: 0; display: grid; gap: 6px; }
+.mi-kv--wide { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.mi-kv > div { display: flex; justify-content: space-between; gap: 12px; }
+.mi-kv dt { color: var(--mctl-text-muted); margin: 0; }
+.mi-kv dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+.mi-kv dd small { color: var(--mctl-text-muted); }
+
+.mi-acc { border-top: 1px solid var(--mctl-border); }
+.mi-acc__h { margin: 0; }
+.mi-acc__btn { width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 12px 2px; font-size: 14px; font-weight: 600; color: var(--mctl-text); cursor: pointer; text-align: left; }
+.mi-acc__btn:focus-visible { outline: 2px solid var(--mctl-accent); outline-offset: 2px; }
+.mi-acc__chev { transition: transform 0.15s ease; display: inline-block; color: var(--mctl-text-muted); }
+.mi-acc__chev--open { transform: rotate(90deg); }
+.mi-acc__panel { padding: 0 2px 14px; }
+.mi-holidays { margin: 10px 0 0; padding-left: 18px; color: var(--mctl-text-muted); }
+
+.mi-muted { color: var(--mctl-text-muted); }
+.mi-error { color: var(--mctl-danger); }
+
+@media (max-width: 640px) {
+  .mi-row__name { display: none; }
+  .mi-head__title { width: 100%; }
+}

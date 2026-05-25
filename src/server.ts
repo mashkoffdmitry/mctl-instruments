@@ -1,5 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { resolve, dirname } from 'node:path';
+import { serveStatic } from './http/static.ts';
 import { FixtureProvider } from './provider/fixture-provider.ts';
 import type { Provider } from './provider/provider.ts';
 import { HttpProblem, badRequest, notFound, tooManyRequests, unauthorized } from './http/problem.ts';
@@ -11,8 +14,12 @@ import * as serialize from './routes/serialize.ts';
 const PORT = Number(process.env.PORT ?? 8787);
 const ANON_RATE = Number(process.env.RATE_LIMIT ?? 120); // req/min/IP
 const TOKEN_RATE = Number(process.env.PRIVATE_RATE_LIMIT ?? 600); // req/min/token
-const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.1.1';
+const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.2.0';
 const STARTED_AT = new Date().toISOString();
+
+// Static demo SPA lives at <repo>/public/demo (baked into the image).
+// From dist/server.js that resolves to ../public/demo.
+const DEMO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
 
 const provider: Provider = new FixtureProvider();
 const anonLimiter = new RateLimiter(ANON_RATE, 60_000);
@@ -61,6 +68,14 @@ async function handle(ctx: Ctx): Promise<void> {
 
   if (req.method !== 'GET') throw badRequest('Поддерживается только метод GET.');
 
+  // ---- demo SPA ----
+  if (path === '/demo' || path.startsWith('/demo/')) {
+    const rel = path.slice('/demo'.length).replace(/^\//, '');
+    const served = await serveStatic(res, DEMO_DIR, rel);
+    if (!served) throw notFound('Демо недоступно.');
+    return;
+  }
+
   // ---- ops endpoints ----
   if (path === '/healthz') {
     sendJson(req, res, { status: 200, body: { status: 'ok' }, cache: { kind: 'no-store' } });
@@ -76,6 +91,13 @@ async function handle(ctx: Ctx): Promise<void> {
       body: { service: 'mctl-instruments', version: SERVICE_VERSION, started_at: STARTED_AT, provider: 'fixture' },
       cache: { kind: 'no-store' },
     });
+    return;
+  }
+
+  // Browsers hitting the root get the demo UI; API clients get the JSON index.
+  if (path === '/' && (req.headers['accept'] ?? '').includes('text/html')) {
+    res.writeHead(302, { location: '/demo/', 'cache-control': 'no-store' });
+    res.end();
     return;
   }
 

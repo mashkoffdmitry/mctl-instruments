@@ -11,7 +11,7 @@ import * as serialize from './routes/serialize.ts';
 const PORT = Number(process.env.PORT ?? 8787);
 const ANON_RATE = Number(process.env.RATE_LIMIT ?? 120); // req/min/IP
 const TOKEN_RATE = Number(process.env.PRIVATE_RATE_LIMIT ?? 600); // req/min/token
-const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.1.0';
+const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.1.1';
 const STARTED_AT = new Date().toISOString();
 
 const provider: Provider = new FixtureProvider();
@@ -75,6 +75,31 @@ async function handle(ctx: Ctx): Promise<void> {
       status: 200,
       body: { service: 'mctl-instruments', version: SERVICE_VERSION, started_at: STARTED_AT, provider: 'fixture' },
       cache: { kind: 'no-store' },
+    });
+    return;
+  }
+
+  // Friendly API index at the root so a browser visit isn't a bare 404.
+  if (path === '/' || path === '/v1') {
+    sendJson(req, res, {
+      status: 200,
+      body: {
+        service: 'mctl-instruments',
+        version: SERVICE_VERSION,
+        description: 'Broker instrument catalog & card API (forex / CFD / crypto).',
+        endpoints: {
+          catalog: '/v1/public/instruments',
+          detail: '/v1/public/instruments/{id}',
+          market_state: '/v1/public/instruments/{id}/market-state',
+          schedule: '/v1/public/instruments/{id}/schedule',
+          reference_filters: '/v1/public/reference/filters',
+          account_conditions: '/v1/private/instruments/{id}/account-conditions (Bearer)',
+          health: '/healthz',
+        },
+        docs: 'https://github.com/mashkoffdmitry/mctl-instruments#endpoints',
+      },
+      cache: { kind: 'short', maxAge: 300 },
+      enableEtag: true,
     });
     return;
   }

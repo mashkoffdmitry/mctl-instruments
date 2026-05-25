@@ -7,29 +7,29 @@ import type {
   TradingStatus,
 } from '../domain/types.ts';
 import { FIXTURES, type FixtureSeed } from '../fixtures/instruments.ts';
+import { computeSession } from '../domain/session.ts';
 import type { CatalogPage, CatalogQuery, FilterReference, Provider } from './provider.ts';
-
-// Fixture timestamps are anchored to process start, not per-request wall-clock,
-// so cacheable representations (catalog/detail/schedule) are byte-stable and
-// ETag/If-None-Match revalidation works. A real adapter (Phase 3) derives these
-// from a live feed + schedule.
-const ANCHOR = Date.now();
 
 function rfc3339(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-// Stamp time-relative offsets from a fixture into concrete RFC 3339 timestamps.
-function materialize(seed: FixtureSeed, now: number): InstrumentRecord {
+// Materialize a fixture: stamp freshness timestamps and derive the live session
+// (state + next open/close) from the schedule calendar at `now`. The fixture's
+// declared trading_status (enabled/close_only/halt) is preserved; only the
+// schedule-driven session_state is computed.
+function materialize(seed: FixtureSeed, now: number = Date.now()): InstrumentRecord {
   const t = seed.timing;
   const r = seed.record;
+  const session = computeSession(r.schedule, now);
   return {
     ...r,
+    state: { ...r.state, session_state: session.session_state },
     quote: { ...r.quote, last_quote_at: rfc3339(now - t.quote_age_sec * 1000) },
     schedule: {
       ...r.schedule,
-      next_open_at: t.next_open_in_sec === null ? null : rfc3339(now + t.next_open_in_sec * 1000),
-      next_close_at: t.next_close_in_sec === null ? null : rfc3339(now + t.next_close_in_sec * 1000),
+      next_open_at: session.next_open_at,
+      next_close_at: session.next_close_at,
     },
     freshness: {
       quote_updated_at: rfc3339(now - t.quote_age_sec * 1000),
@@ -93,7 +93,7 @@ function decodeCursor(cursor: string | undefined): number {
 
 export class FixtureProvider implements Provider {
   async listCatalog(query: CatalogQuery): Promise<CatalogPage> {
-    const all = FIXTURES.map((s) => materialize(s, ANCHOR))
+    const all = FIXTURES.map((s) => materialize(s))
       .filter((rec) => matches(rec, query))
       .sort(comparator(query.sort));
 
@@ -106,7 +106,7 @@ export class FixtureProvider implements Provider {
 
   async getInstrument(id: string): Promise<InstrumentRecord | null> {
     const seed = FIXTURES.find((s) => s.record.instrument_id === id);
-    return seed ? materialize(seed, ANCHOR) : null;
+    return seed ? materialize(seed) : null;
   }
 
   getFilterReference(): FilterReference {

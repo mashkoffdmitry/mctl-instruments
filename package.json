@@ -1,6 +1,6 @@
 {
   "name": "mctl-instruments",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Broker instrument catalog & card API (forex / CFD / crypto). Node/TS proxy serving a layered /v1 REST contract.",
   "type": "module",

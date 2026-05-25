@@ -4,24 +4,60 @@ import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { serveStatic } from './http/static.ts';
 import { FixtureProvider } from './provider/fixture-provider.ts';
+import { CompositeProvider } from './provider/composite.ts';
+import { BinanceClient } from './provider/binance.ts';
 import type { Provider } from './provider/provider.ts';
 import { HttpProblem, badRequest, notFound, tooManyRequests, unauthorized } from './http/problem.ts';
 import { sendJson, sendProblem, type CachePolicy } from './http/response.ts';
 import { RateLimiter } from './http/ratelimit.ts';
+import { Metrics } from './http/metrics.ts';
 import { parseCatalogQuery, parseInclude } from './routes/parse.ts';
 import * as serialize from './routes/serialize.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const ANON_RATE = Number(process.env.RATE_LIMIT ?? 120); // req/min/IP
 const TOKEN_RATE = Number(process.env.PRIVATE_RATE_LIMIT ?? 600); // req/min/token
-const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.2.0';
+const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.3.0';
 const STARTED_AT = new Date().toISOString();
 
 // Static demo SPA lives at <repo>/public/demo (baked into the image).
 // From dist/server.js that resolves to ../public/demo.
 const DEMO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
 
-const provider: Provider = new FixtureProvider();
+const UPSTREAM_BINANCE = (process.env.UPSTREAM_BINANCE ?? 'true') !== 'false';
+const binance = new BinanceClient();
+const fixtureProvider = new FixtureProvider();
+const provider: Provider = UPSTREAM_BINANCE ? new CompositeProvider(fixtureProvider, binance) : fixtureProvider;
+if (UPSTREAM_BINANCE) binance.start();
+
+// Optional: periodically push the full public catalog to the edge worker (R2).
+// No-op unless both env vars are set (the worker layer is optional).
+const CATALOG_INGEST_URL = process.env.CATALOG_INGEST_URL ?? '';
+const CATALOG_INGEST_SECRET = process.env.CATALOG_INGEST_SECRET ?? '';
+const CATALOG_PUSH_MS = Number(process.env.CATALOG_PUSH_MS ?? 300_000);
+
+async function pushCatalogToEdge(): Promise<void> {
+  if (!CATALOG_INGEST_URL || !CATALOG_INGEST_SECRET) return;
+  try {
+    const page = await provider.listCatalog({ limit: 500 });
+    const data = page.items.map((rec) => serialize.catalogRow(rec, { quote: true, margin_summary: true }, 'UTC'));
+    const body = JSON.stringify({ data, meta: { generated_at: rfc3339Now(), next_cursor: null } });
+    await fetch(CATALOG_INGEST_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-ingest-secret': CATALOG_INGEST_SECRET },
+      body,
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (e) {
+    console.error('catalog edge push failed:', (e as Error).message);
+  }
+}
+if (CATALOG_INGEST_URL && CATALOG_INGEST_SECRET) {
+  void pushCatalogToEdge();
+  setInterval(() => void pushCatalogToEdge(), CATALOG_PUSH_MS).unref();
+}
+
+const metrics = new Metrics();
 const anonLimiter = new RateLimiter(ANON_RATE, 60_000);
 const tokenLimiter = new RateLimiter(TOKEN_RATE, 60_000);
 setInterval(() => {
@@ -85,10 +121,23 @@ async function handle(ctx: Ctx): Promise<void> {
     sendJson(req, res, { status: 200, body: { status: 'ready', version: SERVICE_VERSION }, cache: { kind: 'no-store' } });
     return;
   }
+  if (path === '/metrics') {
+    const text = await metrics.render({ version: SERVICE_VERSION, provider, binance: UPSTREAM_BINANCE ? binance : null, nowMs: Date.now() });
+    res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(text);
+    return;
+  }
+
   if (path === '/__status') {
     sendJson(req, res, {
       status: 200,
-      body: { service: 'mctl-instruments', version: SERVICE_VERSION, started_at: STARTED_AT, provider: 'fixture' },
+      body: {
+        service: 'mctl-instruments',
+        version: SERVICE_VERSION,
+        started_at: STARTED_AT,
+        provider: UPSTREAM_BINANCE ? 'composite(fixture+binance)' : 'fixture',
+        upstream: UPSTREAM_BINANCE ? binance.status() : null,
+      },
       cache: { kind: 'no-store' },
     });
     return;
@@ -194,7 +243,9 @@ async function handle(ctx: Ctx): Promise<void> {
       cache: { kind: 'short', maxAge: 300 },
       vary: ['Accept-Language'],
       enableEtag: true,
-      etagBasis: data,
+      // Exclude volatile freshness timestamps; substantive content (spec, conditions,
+      // margin, schedule instants) is what drives the validator.
+      etagBasis: { ...data, freshness: null },
     });
     return;
   }
@@ -205,7 +256,10 @@ async function handle(ctx: Ctx): Promise<void> {
     const token = bearerToken(req);
     if (!token) throw unauthorized();
     const retry = tokenLimiter.check(`tok:${token}`);
-    if (retry !== null) throw tooManyRequests(retry);
+    if (retry !== null) {
+      metrics.recordRateLimited();
+      throw tooManyRequests(retry);
+    }
     const id = decodeURIComponent(priv[1]!);
     const conditions = await provider.getAccountConditions(id, token);
     if (!conditions) throw notFound(`Инструмент ${id} не найден.`);
@@ -223,6 +277,7 @@ async function handle(ctx: Ctx): Promise<void> {
 
 const server = createServer((req, res) => {
   const traceId = `trc_${randomUUID()}`;
+  res.on('finish', () => metrics.recordRequest(res.statusCode));
   let url: URL;
   try {
     url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -234,6 +289,7 @@ const server = createServer((req, res) => {
   // Anonymous rate limit (private routes additionally check the token bucket).
   const retry = anonLimiter.check(`ip:${clientIp(req)}`);
   if (retry !== null) {
+    metrics.recordRateLimited();
     sendProblem(res, tooManyRequests(retry), url.pathname + url.search, traceId);
     return;
   }

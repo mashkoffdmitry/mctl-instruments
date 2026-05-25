@@ -8,8 +8,6 @@ export interface FixtureTiming {
   quote_age_sec: number; // last_quote_at = now - this
   schedule_age_sec: number; // schedule_updated_at = now - this
   config_age_sec: number; // config_updated_at = now - this
-  next_close_in_sec: number | null; // null => not applicable (e.g. 24/7 or closed)
-  next_open_in_sec: number | null;
 }
 
 export interface FixtureSeed {
@@ -25,7 +23,7 @@ const HOUR = 3600;
 export const FIXTURES: FixtureSeed[] = [
   // 1) forex major — open, real-time
   {
-    timing: { quote_age_sec: 1, schedule_age_sec: 6 * HOUR, config_age_sec: 18 * HOUR, next_close_in_sec: 5 * HOUR, next_open_in_sec: null },
+    timing: { quote_age_sec: 1, schedule_age_sec: 6 * HOUR, config_age_sec: 18 * HOUR},
     record: {
       instrument_id: 'fx.eurusd',
       symbol: 'EURUSD',
@@ -71,7 +69,7 @@ export const FIXTURES: FixtureSeed[] = [
 
   // 2) forex cross — open, DELAYED quote (15 min)
   {
-    timing: { quote_age_sec: 900, schedule_age_sec: 6 * HOUR, config_age_sec: 20 * HOUR, next_close_in_sec: 5 * HOUR, next_open_in_sec: null },
+    timing: { quote_age_sec: 900, schedule_age_sec: 6 * HOUR, config_age_sec: 20 * HOUR},
     record: {
       instrument_id: 'fx.gbpjpy',
       symbol: 'GBPJPY',
@@ -114,7 +112,7 @@ export const FIXTURES: FixtureSeed[] = [
 
   // 3) crypto — 24/7 open, real-time
   {
-    timing: { quote_age_sec: 1, schedule_age_sec: 12 * HOUR, config_age_sec: 30 * HOUR, next_close_in_sec: null, next_open_in_sec: null },
+    timing: { quote_age_sec: 1, schedule_age_sec: 12 * HOUR, config_age_sec: 30 * HOUR},
     record: {
       instrument_id: 'crypto.btcusd',
       symbol: 'BTCUSD',
@@ -161,7 +159,7 @@ export const FIXTURES: FixtureSeed[] = [
 
   // 4) index CFD — CLOSE ONLY (reduce-only session)
   {
-    timing: { quote_age_sec: 2, schedule_age_sec: 6 * HOUR, config_age_sec: 26 * HOUR, next_close_in_sec: 3 * HOUR, next_open_in_sec: null },
+    timing: { quote_age_sec: 2, schedule_age_sec: 6 * HOUR, config_age_sec: 26 * HOUR},
     record: {
       instrument_id: 'idx.us500',
       symbol: 'US500',
@@ -203,7 +201,7 @@ export const FIXTURES: FixtureSeed[] = [
 
   // 5) metal CFD — MARKET CLOSED (weekend / outside session)
   {
-    timing: { quote_age_sec: 8 * HOUR, schedule_age_sec: 6 * HOUR, config_age_sec: 40 * HOUR, next_close_in_sec: null, next_open_in_sec: 14 * HOUR },
+    timing: { quote_age_sec: 8 * HOUR, schedule_age_sec: 6 * HOUR, config_age_sec: 40 * HOUR},
     record: {
       instrument_id: 'metal.xauusd',
       symbol: 'XAUUSD',
@@ -246,7 +244,7 @@ export const FIXTURES: FixtureSeed[] = [
 
   // 6) share CFD — HALT (corporate action)
   {
-    timing: { quote_age_sec: 120, schedule_age_sec: 6 * HOUR, config_age_sec: 50 * HOUR, next_close_in_sec: 4 * HOUR, next_open_in_sec: null },
+    timing: { quote_age_sec: 120, schedule_age_sec: 6 * HOUR, config_age_sec: 50 * HOUR},
     record: {
       instrument_id: 'share.aapl',
       symbol: 'AAPL',
@@ -288,7 +286,7 @@ export const FIXTURES: FixtureSeed[] = [
 
   // 7) index CFD — HOLIDAY (modified hours / early close)
   {
-    timing: { quote_age_sec: 3, schedule_age_sec: 1 * HOUR, config_age_sec: 22 * HOUR, next_close_in_sec: 2 * HOUR, next_open_in_sec: null },
+    timing: { quote_age_sec: 3, schedule_age_sec: 1 * HOUR, config_age_sec: 22 * HOUR},
     record: {
       instrument_id: 'idx.uk100',
       symbol: 'UK100',
@@ -312,7 +310,7 @@ export const FIXTURES: FixtureSeed[] = [
         swaps: { swap_type: 'points', long: '-1.0', short: '-0.6', triple_swap_day: 'fri' },
       },
       margin: { margin_model: 'fixed', margin_rate_from: '0.05', max_leverage_from: '1:20', tiers: [] },
-      schedule: { schedule_timezone: 'UTC', regular_intervals: [
+      schedule: { schedule_timezone: 'Europe/London', regular_intervals: [
         { day: 'mon', open: '08:00', close: '16:30' },
         { day: 'tue', open: '08:00', close: '16:30' },
         { day: 'wed', open: '08:00', close: '16:30' },
@@ -320,6 +318,7 @@ export const FIXTURES: FixtureSeed[] = [
         { day: 'fri', open: '08:00', close: '16:30' },
       ], holiday_exceptions: [
         { name: 'Spring Bank Holiday', date: '2026-05-25', is_closed: false, early_close: '12:30', reopen: '00:00' },
+        { name: 'Spring Bank Holiday', date: '2026-05-26', is_closed: false, early_close: '12:30', reopen: '00:00' },
       ] },
       expiry_or_rollover_date: null,
       disclosures: {

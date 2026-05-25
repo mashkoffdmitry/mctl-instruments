@@ -21,6 +21,24 @@ jobs:
       - run: npm run type-check
       - run: npm run build
 
+  widget:
+    name: vue widget build & type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vue
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vue/package-lock.json
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run build
+      - run: npm run build:demo
+
   docker:
     name: docker image build
     # Pre-merge gate only: on push to main, mctl rebuilds the image centrally.

@@ -1,0 +1,12 @@
+name = "mctl-instruments-catalog-worker"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# R2 bucket holding the latest public catalog snapshot.
+# Create once: npx wrangler r2 bucket create instruments-catalog
+[[r2_buckets]]
+binding = "CATALOG"
+bucket_name = "instruments-catalog"
+
+# INGEST_SECRET is set as a secret, not here:
+#   npx wrangler secret put INGEST_SECRET

@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  proxy:
+    name: proxy build & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run build
+
+  docker:
+    name: docker image build
+    # Pre-merge gate only: on push to main, mctl rebuilds the image centrally.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: false
+          tags: mctl-instruments:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: deploy to mctl labs/instruments-proxy
+    needs: [proxy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Skip if MCTL_GITHUB_TOKEN unset
+        id: gate
+        run: |
+          if [ -z "${{ secrets.MCTL_GITHUB_TOKEN }}" ]; then
+            echo "::warning::MCTL_GITHUB_TOKEN secret not set — skipping deploy"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Compute next SemVer patch
+        id: tag
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          LAST=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' | grep -v -- '-' | sort -V | tail -1)
+          [ -z "$LAST" ] && LAST="0.0.0"
+          MAJOR=$(echo "$LAST" | cut -d. -f1)
+          MINOR=$(echo "$LAST" | cut -d. -f2)
+          PATCH=$(echo "$LAST" | cut -d. -f3)
+          NEW_TAG="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "Last tag: $LAST → New tag: $NEW_TAG"
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Push new tag
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.tag.outputs.tag }}" -m "Auto-deploy ${{ steps.tag.outputs.tag }} from ${{ github.sha }}"
+          git push origin "${{ steps.tag.outputs.tag }}"
+
+      - name: Trigger mctl deploy-service
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS -X POST https://api.mctl.ai/api/v1/operations/deploy-service/execute \
+            -H "Authorization: Bearer ${{ secrets.MCTL_GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "action": "deploy",
+              "team_name": "labs",
+              "component_name": "instruments-proxy",
+              "dockerfile_repo": "mashkoffdmitry/mctl-instruments",
+              "git_tag": "${{ steps.tag.outputs.tag }}"
+            }')
+          echo "mctl response: $response"

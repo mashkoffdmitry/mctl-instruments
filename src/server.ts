@@ -7,6 +7,7 @@ import { FixtureProvider } from './provider/fixture-provider.ts';
 import { CompositeProvider } from './provider/composite.ts';
 import { BinanceClient } from './provider/binance.ts';
 import { TwelveDataClient } from './provider/twelvedata.ts';
+import { TwelveDataWsClient } from './provider/twelvedata-ws.ts';
 import type { LiveQuoteSource } from './provider/source.ts';
 import type { Provider } from './provider/provider.ts';
 import { HttpProblem, badRequest, notFound, tooManyRequests, unauthorized } from './http/problem.ts';
@@ -28,12 +29,17 @@ const DEMO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public'
 
 const UPSTREAM_BINANCE = (process.env.UPSTREAM_BINANCE ?? 'true') !== 'false';
 const UPSTREAM_TWELVEDATA = (process.env.UPSTREAM_TWELVEDATA ?? 'true') !== 'false';
+const UPSTREAM_TWELVEDATA_WS = (process.env.UPSTREAM_TWELVEDATA_WS ?? 'true') !== 'false';
 const fixtureProvider = new FixtureProvider();
-// Live sources, in precedence order (crypto via Binance, everything else via
-// Twelve Data). Twelve Data is inert without an API key. Asset classes with no
+// Live sources, in precedence order: crypto via Binance, then the 8 top
+// non-crypto symbols via the Twelve Data real-time WebSocket, then the rest via
+// the delayed Twelve Data REST source. The WS and REST symbol maps are disjoint,
+// and listing the WS source first means its real-time quote wins for those 8.
+// Both Twelve Data sources are inert without an API key; asset classes with no
 // supporting source fall back to fixture data.
 const sources: LiveQuoteSource[] = [];
 if (UPSTREAM_BINANCE) sources.push(new BinanceClient());
+if (UPSTREAM_TWELVEDATA_WS && TwelveDataWsClient.enabled()) sources.push(new TwelveDataWsClient());
 if (UPSTREAM_TWELVEDATA && TwelveDataClient.enabled()) sources.push(new TwelveDataClient());
 const provider: Provider = sources.length > 0 ? new CompositeProvider(fixtureProvider, sources) : fixtureProvider;
 for (const s of sources) s.start();

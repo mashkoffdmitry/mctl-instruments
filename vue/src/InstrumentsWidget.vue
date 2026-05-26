@@ -159,7 +159,10 @@ watch(
     searchDebounce = setTimeout(() => void loadCatalog(), 200);
   },
 );
-watch(() => props.locale, () => void loadCatalog());
+// Locale change re-fetches localized labels, but keep the current rows visible
+// (silent) instead of blanking the table to a "Loading…" flash. Theme is purely
+// cosmetic and intentionally has no watcher → no refetch.
+watch(() => props.locale, () => void loadCatalog(true));
 
 onMounted(() => {
   void loadFilters();
@@ -216,7 +219,8 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
       <p v-else-if="error" class="mi-error">{{ error }}</p>
       <p v-else-if="rows.length === 0" class="mi-muted">{{ t('msg.empty') }}</p>
 
-      <table v-else class="mi-table">
+      <div v-else class="mi-table-wrap">
+      <table class="mi-table">
         <thead>
           <tr>
             <th>{{ t('col.symbol') }}</th>
@@ -257,6 +261,7 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
           </tr>
         </tbody>
       </table>
+      </div>
     </template>
 
     <!-- Detail view -->

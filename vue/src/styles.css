@@ -183,9 +183,39 @@
 }
 @media (max-width: 640px) {
   .mi-root { padding: 14px; }
-  .mi-col-class { display: none; }
-  .mi-row__name { display: none; }
   .mi-head__title { width: 100%; }
   .mi-input { min-width: 0; flex: 1; }
   .mi-price { gap: 18px; flex-wrap: wrap; }
+
+  /* Wide 9-column table doesn't fit a phone — render each row as a stacked
+     card. The header row is dropped and every cell becomes a labeled
+     key/value line (label from data-label). No horizontal scroll. */
+  .mi-table-wrap { overflow-x: visible; }
+  .mi-table { display: block; }
+  .mi-table thead { display: none; }
+  .mi-table tbody { display: block; }
+  .mi-row {
+    display: block; padding: 12px 14px; margin-bottom: 10px;
+    border: 1px solid var(--mctl-border); border-radius: var(--mctl-radius);
+    border-left: 2px solid var(--row-accent, var(--mctl-accent));
+  }
+  .mi-row td {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 4px 0; border: none; white-space: normal; text-align: right;
+  }
+  .mi-row td::before {
+    content: attr(data-label); text-align: left; color: var(--mctl-text-subtle);
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  /* Secondary + class cells are useful in card form — re-show them (override
+     the <=900 / desktop hides) as labeled rows. */
+  .mi-col-sec, .mi-col-class { display: flex; }
+  /* First cell = card title: symbol + name, full width, no label. */
+  .mi-cell-symbol {
+    display: block; text-align: left; padding: 0 0 8px; margin-bottom: 6px;
+    border-bottom: 1px solid var(--mctl-border); border-left: none;
+  }
+  .mi-cell-symbol::before { content: none; }
+  .mi-row td:first-child { border-left: none; padding-left: 0; }
+  .mi-row__name { display: inline; margin-left: 8px; font-size: 12px; }
 }

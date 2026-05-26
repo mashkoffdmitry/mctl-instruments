@@ -1,5 +1,5 @@
 import type { Provider } from '../provider/provider.ts';
-import type { BinanceClient } from '../provider/binance.ts';
+import type { LiveQuoteSource } from '../provider/source.ts';
 
 // Minimal in-process counters + a Prometheus text renderer. Per-layer freshness
 // gauges are computed at scrape time from the live provider snapshot.
@@ -20,10 +20,10 @@ export class Metrics {
   async render(opts: {
     version: string;
     provider: Provider;
-    binance: BinanceClient | null;
+    sources: LiveQuoteSource[];
     nowMs: number;
   }): Promise<string> {
-    const { version, provider, binance, nowMs } = opts;
+    const { version, provider, sources, nowMs } = opts;
     const lines: string[] = [];
     const g = (name: string, help: string, type: 'gauge' | 'counter') => {
       lines.push(`# HELP ${name} ${help}`);
@@ -42,12 +42,17 @@ export class Metrics {
     g('mctl_instruments_server_errors_total', '5xx responses.', 'counter');
     lines.push(`mctl_instruments_server_errors_total ${this.errors}`);
 
-    if (binance) {
-      const st = binance.status();
-      g('mctl_instruments_upstream_up', 'Upstream feed healthy (1) or erroring (0).', 'gauge');
-      lines.push(`mctl_instruments_upstream_up ${st.last_error === null ? 1 : 0}`);
-      g('mctl_instruments_upstream_cached_symbols', 'Symbols with a cached upstream quote.', 'gauge');
-      lines.push(`mctl_instruments_upstream_cached_symbols ${st.cached}`);
+    if (sources.length > 0) {
+      g('mctl_instruments_upstream_up', 'Upstream feed healthy (1) or erroring (0), per source.', 'gauge');
+      for (const src of sources) {
+        const st = src.status();
+        lines.push(`mctl_instruments_upstream_up{source="${st.label}"} ${st.last_error === null ? 1 : 0}`);
+      }
+      g('mctl_instruments_upstream_cached_symbols', 'Symbols with a cached upstream quote, per source.', 'gauge');
+      for (const src of sources) {
+        const st = src.status();
+        lines.push(`mctl_instruments_upstream_cached_symbols{source="${st.label}"} ${st.cached}`);
+      }
     }
 
     // Per-instrument freshness + tradability snapshot.

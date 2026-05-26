@@ -90,6 +90,9 @@
 .mi-check input { accent-color: var(--mctl-accent); }
 
 /* ---- table ---- */
+/* Horizontal-scroll safety net: on any width too narrow for the visible columns
+   the table scrolls inside its card instead of overflowing the page. */
+.mi-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .mi-table { width: 100%; border-collapse: collapse; }
 .mi-table th {
   text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;

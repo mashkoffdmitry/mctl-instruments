@@ -1,31 +1,104 @@
 import type {
   AccountConditions,
+  AccountType,
   AssetClass,
   Category,
+  Execution,
+  FillingMode,
   InstrumentRecord,
+  MarginMode,
+  Platform,
   QuoteMode,
   TradingStatus,
 } from '../domain/types.ts';
 import { FIXTURES, type FixtureSeed } from '../fixtures/instruments.ts';
 import { computeSession } from '../domain/session.ts';
-import type { CatalogPage, CatalogQuery, FilterReference, Provider } from './provider.ts';
+import type { CatalogPage, CatalogQuery, Dimensions, FilterReference, Provider } from './provider.ts';
 
 function rfc3339(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-// Materialize a fixture: stamp freshness timestamps and derive the live session
-// (state + next open/close) from the schedule calendar at `now`. The fixture's
-// declared trading_status (enabled/close_only/halt) is preserved; only the
-// schedule-driven session_state is computed.
-function materialize(seed: FixtureSeed, now: number = Date.now()): InstrumentRecord {
+const DEFAULT_ACCOUNT: AccountType = 'standard';
+const DEFAULT_PLATFORM: Platform = 'mt5';
+
+function marginModeFor(assetClass: AssetClass): MarginMode {
+  if (assetClass === 'forex' || assetClass === 'metals') return 'forex';
+  if (assetClass === 'crypto') return 'cfd_leverage';
+  return 'cfd';
+}
+
+function fillingModesFor(platform: Platform): FillingMode[] {
+  if (platform === 'mt4') return ['fok', 'return'];
+  if (platform === 'native') return ['ioc'];
+  return ['fok', 'ioc', 'return']; // mt5
+}
+
+function executionFor(assetClass: AssetClass, platform: Platform): Execution {
+  const exchangeLike = assetClass === 'shares';
+  return {
+    execution_mode: exchangeLike ? 'exchange' : 'market',
+    filling_modes: fillingModesFor(platform),
+    stop_level: assetClass === 'forex' ? '0' : assetClass === 'crypto' ? '50' : '20',
+    freeze_level: assetClass === 'forex' ? '0' : '10',
+    limit_stop_orders_allowed: true,
+    short_selling: assetClass !== 'shares',
+  };
+}
+
+// Account-type variance: raw accounts get tighter spreads + explicit commission,
+// pro sits between. Multiplies the displayed spread and sets a commission.
+function accountSpreadFactor(account: AccountType): number {
+  return account === 'raw' ? 0.4 : account === 'pro' ? 0.7 : 1;
+}
+
+function scaleDecimal(value: string, factor: number): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  const decimals = value.includes('.') ? value.split('.')[1]!.length : 1;
+  return (n * factor).toFixed(decimals);
+}
+
+// Materialize a fixture: derive live session, stamp freshness, inject the
+// MetaTrader-style execution + margin fields, and apply account/platform variance.
+function materialize(seed: FixtureSeed, now: number = Date.now(), dims: Dimensions = {}): InstrumentRecord {
   const t = seed.timing;
   const r = seed.record;
+  const account = dims.account_type ?? DEFAULT_ACCOUNT;
+  const platform = dims.platform ?? DEFAULT_PLATFORM;
   const session = computeSession(r.schedule, now);
+  const factor = accountSpreadFactor(account);
+
+  const tc = r.trading_conditions;
+  const trading_conditions =
+    factor === 1
+      ? tc
+      : {
+          ...tc,
+          pricing_model: 'spread_plus_commission' as const,
+          typical_spread: { ...tc.typical_spread, value_pips: scaleDecimal(tc.typical_spread.value_pips, factor) },
+          commission: { ...tc.commission, amount: account === 'raw' ? '3.50' : '2.00' },
+        };
+
   return {
     ...r,
+    account_type: account,
+    platform,
     state: { ...r.state, session_state: session.session_state },
-    quote: { ...r.quote, last_quote_at: rfc3339(now - t.quote_age_sec * 1000) },
+    quote: {
+      ...r.quote,
+      current_spread_pips: factor === 1 ? r.quote.current_spread_pips : scaleDecimal(r.quote.current_spread_pips, factor),
+      last_quote_at: rfc3339(now - t.quote_age_sec * 1000),
+    },
+    trading_conditions,
+    margin: {
+      ...r.margin,
+      margin_mode: marginModeFor(r.asset_class),
+      initial_margin: { basis: 'auto', value: null },
+      maintenance_margin: { basis: 'auto', value: null },
+      hedged_margin: r.asset_class === 'forex' || r.asset_class === 'metals' ? '50%' : '100%',
+    },
+    execution: executionFor(r.asset_class, platform),
     schedule: {
       ...r.schedule,
       next_open_at: session.next_open_at,
@@ -93,7 +166,8 @@ function decodeCursor(cursor: string | undefined): number {
 
 export class FixtureProvider implements Provider {
   async listCatalog(query: CatalogQuery): Promise<CatalogPage> {
-    const all = FIXTURES.map((s) => materialize(s))
+    const dims: Dimensions = { account_type: query.account_type, platform: query.platform };
+    const all = FIXTURES.map((s) => materialize(s, Date.now(), dims))
       .filter((rec) => matches(rec, query))
       .sort(comparator(query.sort));
 
@@ -104,9 +178,9 @@ export class FixtureProvider implements Provider {
     return { items, next_cursor };
   }
 
-  async getInstrument(id: string): Promise<InstrumentRecord | null> {
+  async getInstrument(id: string, dims: Dimensions = {}): Promise<InstrumentRecord | null> {
     const seed = FIXTURES.find((s) => s.record.instrument_id === id);
-    return seed ? materialize(seed) : null;
+    return seed ? materialize(seed, Date.now(), dims) : null;
   }
 
   getFilterReference(): FilterReference {

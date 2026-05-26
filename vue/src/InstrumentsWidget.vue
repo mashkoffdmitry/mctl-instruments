@@ -7,6 +7,7 @@ import { createFormat } from './composables/format.ts';
 import { deriveUiState } from './composables/state.ts';
 import StateBadge from './components/StateBadge.vue';
 import DetailCard from './components/DetailCard.vue';
+import { assetAccent } from './composables/assets.ts';
 
 const props = withDefaults(
   defineProps<{
@@ -29,7 +30,11 @@ const api = computed(() => createApi(props.apiBase, props.locale));
 const t = computed(() => createT(props.locale));
 const fmt = computed(() => createFormat(props.locale, props.displayTimezone));
 
-const filters = reactive({ search: '', asset_class: props.initialAssetClass, status: '', tradable_now: false });
+const filters = reactive({ search: '', asset_class: props.initialAssetClass, status: '', tradable_now: false, account_type: 'standard', platform: 'mt5' });
+const dims = computed(() => ({ account_type: filters.account_type, platform: filters.platform }));
+
+const ACCOUNT_TYPES = ['standard', 'raw', 'pro'];
+const PLATFORMS = ['mt5', 'mt4', 'native'];
 const rows = ref<CatalogRow[]>([]);
 const reference = ref<FilterReference | null>(null);
 const loading = ref(false);
@@ -41,7 +46,8 @@ const market = ref<MarketState | null>(null);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 function rowUiState(row: CatalogRow): UiState {
-  return deriveUiState(row.status, row.quote, Date.now());
+  // Catalog is a cacheable snapshot — don't flag wall-clock staleness here.
+  return deriveUiState(row.status, row.quote, Date.now(), false);
 }
 const detailUiState = computed<UiState>(() => {
   if (!detail.value) return 'open_realtime';
@@ -51,11 +57,17 @@ const detailUiState = computed<UiState>(() => {
   return deriveUiState(status, market.value?.quote, Date.now());
 });
 
-async function loadCatalog(): Promise<void> {
-  loading.value = true;
+async function loadCatalog(silent = false): Promise<void> {
+  if (!silent) loading.value = true;
   error.value = null;
   try {
-    const params: CatalogParams = { tz: props.displayTimezone, locale: props.locale, limit: 100 };
+    const params: CatalogParams = {
+      tz: props.displayTimezone,
+      locale: props.locale,
+      limit: 100,
+      account_type: filters.account_type,
+      platform: filters.platform,
+    };
     if (filters.search) params.search = filters.search;
     if (filters.asset_class) params.asset_class = filters.asset_class;
     if (filters.status) params.status = filters.status;
@@ -64,10 +76,24 @@ async function loadCatalog(): Promise<void> {
     rows.value = res.data;
   } catch (e) {
     const err = e as Error;
-    error.value = t.value('msg.error');
+    if (!silent) error.value = t.value('msg.error');
     emit('error', err);
   } finally {
     loading.value = false;
+  }
+}
+
+// Keep catalog quotes/states fresh while the list is visible (catalog isn't
+// polled per-row; without this, rows drift to "stale" against the wall clock).
+let catalogTimer: ReturnType<typeof setInterval> | null = null;
+function startCatalogPoll(): void {
+  stopCatalogPoll();
+  catalogTimer = setInterval(() => void loadCatalog(true), 15000);
+}
+function stopCatalogPoll(): void {
+  if (catalogTimer) {
+    clearInterval(catalogTimer);
+    catalogTimer = null;
   }
 }
 
@@ -98,10 +124,11 @@ async function select(id: string): Promise<void> {
   selectedId.value = id;
   detail.value = null;
   market.value = null;
+  stopCatalogPoll();
   emit('select-instrument', id);
   try {
     const [d, m] = await Promise.all([
-      api.value.getDetail(id, props.displayTimezone),
+      api.value.getDetail(id, props.displayTimezone, dims.value),
       api.value.getMarketState(id, props.displayTimezone),
     ]);
     detail.value = d.data;
@@ -120,6 +147,8 @@ function back(): void {
   detail.value = null;
   market.value = null;
   stopPolling();
+  void loadCatalog(true);
+  startCatalogPoll();
 }
 
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -135,8 +164,12 @@ watch(() => props.locale, () => void loadCatalog());
 onMounted(() => {
   void loadFilters();
   void loadCatalog();
+  startCatalogPoll();
 });
-onBeforeUnmount(stopPolling);
+onBeforeUnmount(() => {
+  stopPolling();
+  stopCatalogPoll();
+});
 
 const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${props.theme}`));
 </script>
@@ -148,16 +181,25 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
       <header class="mi-head">
         <h1 class="mi-head__title">{{ t('app.title') }}</h1>
         <div class="mi-controls">
-          <input
-            v-model="filters.search"
-            class="mi-input"
-            type="search"
-            :placeholder="t('search.placeholder')"
-            :aria-label="t('search.placeholder')"
-          />
+          <div class="mi-search">
+            <span class="mi-search__icon" aria-hidden="true">⌕</span>
+            <input
+              v-model="filters.search"
+              class="mi-input"
+              type="search"
+              :placeholder="t('search.placeholder')"
+              :aria-label="t('search.placeholder')"
+            />
+          </div>
           <select v-model="filters.asset_class" class="mi-select" :aria-label="t('filter.asset_class')">
             <option value="">{{ t('filter.asset_class') }}: {{ t('filter.all') }}</option>
             <option v-for="ac in reference?.asset_classes ?? []" :key="ac.id" :value="ac.id">{{ ac.label }}</option>
+          </select>
+          <select v-model="filters.account_type" class="mi-select" :aria-label="t('filter.account_type')">
+            <option v-for="a in ACCOUNT_TYPES" :key="a" :value="a">{{ t('filter.account_type') }}: {{ a }}</option>
+          </select>
+          <select v-model="filters.platform" class="mi-select" :aria-label="t('filter.platform')">
+            <option v-for="p in PLATFORMS" :key="p" :value="p">{{ t('filter.platform') }}: {{ p }}</option>
           </select>
           <select v-model="filters.status" class="mi-select" :aria-label="t('filter.status')">
             <option value="">{{ t('filter.status') }}: {{ t('filter.all') }}</option>
@@ -178,9 +220,13 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
         <thead>
           <tr>
             <th>{{ t('col.symbol') }}</th>
+            <th class="mi-col-class">{{ t('col.class') }}</th>
             <th>{{ t('col.status') }}</th>
             <th class="mi-num">{{ t('col.spread') }}</th>
-            <th class="mi-num">{{ t('col.min') }}</th>
+            <th class="mi-num mi-col-sec">{{ t('col.commission') }}</th>
+            <th class="mi-num mi-col-sec">{{ t('col.min') }}</th>
+            <th class="mi-num mi-col-sec">{{ t('col.contract') }}</th>
+            <th class="mi-num mi-col-sec">{{ t('col.swap') }}</th>
             <th class="mi-num">{{ t('col.leverage') }}</th>
           </tr>
         </thead>
@@ -189,6 +235,7 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
             v-for="row in rows"
             :key="row.instrument_id"
             class="mi-row"
+            :style="{ '--row-accent': assetAccent(row.asset_class) }"
             tabindex="0"
             role="button"
             @click="select(row.instrument_id)"
@@ -196,14 +243,17 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
             @keydown.space.prevent="select(row.instrument_id)"
           >
             <td>
-              <strong>{{ row.display_symbol }}</strong>
+              <strong class="mi-mono">{{ row.display_symbol }}</strong>
               <span class="mi-row__name">{{ row.display_name }}</span>
-              <span class="mi-chip mi-chip--sm">{{ row.asset_class }}</span>
             </td>
+            <td class="mi-col-class"><span class="mi-chip mi-chip--sm" :style="{ color: assetAccent(row.asset_class) }">{{ row.asset_class }}</span></td>
             <td><StateBadge :state="rowUiState(row)" :label="stateLabel(t, rowUiState(row))" /></td>
-            <td class="mi-num">{{ row.quote ? fmt.num(row.quote.current_spread_pips) : '—' }}</td>
-            <td class="mi-num">{{ fmt.num(row.volume_summary.min_volume) }}</td>
-            <td class="mi-num">{{ row.margin_summary?.max_leverage_from ?? '—' }}</td>
+            <td class="mi-num mi-mono">{{ row.quote ? fmt.num(row.quote.current_spread_pips) : '—' }}</td>
+            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.costs_summary.commission) }}</td>
+            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.volume_summary.min_volume) }}</td>
+            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.contract_size) }}</td>
+            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.costs_summary.swap_long) }} / {{ fmt.num(row.costs_summary.swap_short) }}</td>
+            <td class="mi-num mi-mono">{{ row.margin_summary?.max_leverage_from ?? '—' }}</td>
           </tr>
         </tbody>
       </table>

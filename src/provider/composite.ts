@@ -1,5 +1,5 @@
 import type { AccountConditions, InstrumentRecord } from '../domain/types.ts';
-import type { CatalogPage, CatalogQuery, FilterReference, Provider } from './provider.ts';
+import type { CatalogPage, CatalogQuery, Dimensions, FilterReference, Provider } from './provider.ts';
 import { BinanceClient, isUpstreamSymbol } from './binance.ts';
 
 function rfc3339(ms: number): string {
@@ -58,8 +58,8 @@ export class CompositeProvider implements Provider {
     return { ...page, items: page.items.map((rec) => overlayLiveQuote(rec, this.binance)) };
   }
 
-  async getInstrument(id: string): Promise<InstrumentRecord | null> {
-    const rec = await this.base.getInstrument(id);
+  async getInstrument(id: string, dims?: Dimensions): Promise<InstrumentRecord | null> {
+    const rec = await this.base.getInstrument(id, dims);
     return rec ? overlayLiveQuote(rec, this.binance) : null;
   }
 

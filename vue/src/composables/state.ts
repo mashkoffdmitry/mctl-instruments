@@ -3,7 +3,15 @@ import type { QuoteBlock, StatusBlock, UiState } from '../types.ts';
 // Threshold (seconds) past which an "open" instrument's quote is considered stale.
 const STALE_OPEN_SECONDS = 60;
 
-export function deriveUiState(status: StatusBlock, quote: QuoteBlock | undefined, nowMs: number): UiState {
+// `detectStale` is only meaningful for the live market-state (no-store, polled).
+// Catalog rows come from a cacheable snapshot (max-age), so a few minutes of
+// wall-clock age is expected and must NOT be rendered as "stale".
+export function deriveUiState(
+  status: StatusBlock,
+  quote: QuoteBlock | undefined,
+  nowMs: number,
+  detectStale = true,
+): UiState {
   if (status.trading_status === 'halt' || status.trading_status === 'break') return 'halt_or_break';
   if (status.session_state === 'holiday') return 'holiday_modified';
   if (status.session_state === 'closed') return 'market_closed';
@@ -11,7 +19,7 @@ export function deriveUiState(status: StatusBlock, quote: QuoteBlock | undefined
 
   // Open: distinguish real-time / delayed / stale.
   if (quote) {
-    if (status.session_state === 'open' && quote.quote_mode === 'real_time') {
+    if (detectStale && status.session_state === 'open' && quote.quote_mode === 'real_time') {
       const ageSec = (nowMs - Date.parse(quote.last_quote_at)) / 1000;
       if (ageSec > STALE_OPEN_SECONDS) return 'stale_data';
     }

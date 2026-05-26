@@ -1,4 +1,4 @@
-import type { AssetClass, Category, QuoteMode, TradingStatus } from '../domain/types.ts';
+import type { AccountType, AssetClass, Category, Platform, QuoteMode, TradingStatus } from '../domain/types.ts';
 import type { CatalogQuery } from '../provider/provider.ts';
 import type { IncludeSet } from './serialize.ts';
 import { badRequest, unprocessable } from '../http/problem.ts';
@@ -7,6 +7,8 @@ const ASSET_CLASSES = ['forex', 'indices', 'metals', 'commodities', 'shares', 'c
 const CATEGORIES = ['major', 'minor', 'exotic', 'spot', 'cash', 'futures_based'] as const;
 const STATUSES = ['enabled', 'close_only', 'disabled', 'halt', 'break'] as const;
 const QUOTE_MODES = ['real_time', 'delayed', 'indicative'] as const;
+const ACCOUNT_TYPES = ['standard', 'raw', 'pro'] as const;
+const PLATFORMS = ['mt5', 'mt4', 'native'] as const;
 const SORT_KEYS = ['popularity', '-popularity', 'symbol', '-symbol'] as const;
 
 const DEFAULT_LIMIT = 50;
@@ -54,6 +56,12 @@ export function parseCatalogQuery(params: URLSearchParams): CatalogQuery {
   const jurisdiction = params.get('jurisdiction');
   if (jurisdiction) q.jurisdiction = jurisdiction;
 
+  const accountType = params.get('account_type');
+  if (accountType) q.account_type = oneOf<AccountType>(accountType, ACCOUNT_TYPES, 'account_type');
+
+  const platform = params.get('platform');
+  if (platform) q.platform = oneOf<Platform>(platform, PLATFORMS, 'platform');
+
   const tags = params.get('tags');
   if (tags) q.tags = tags.split(',').map((t) => t.trim()).filter(Boolean);
 
@@ -75,6 +83,15 @@ export function parseCatalogQuery(params: URLSearchParams): CatalogQuery {
   }
 
   return q;
+}
+
+export function parseDimensions(params: URLSearchParams): { account_type?: AccountType; platform?: Platform } {
+  const dims: { account_type?: AccountType; platform?: Platform } = {};
+  const accountType = params.get('account_type');
+  if (accountType) dims.account_type = oneOf<AccountType>(accountType, ACCOUNT_TYPES, 'account_type');
+  const platform = params.get('platform');
+  if (platform) dims.platform = oneOf<Platform>(platform, PLATFORMS, 'platform');
+  return dims;
 }
 
 export function parseInclude(params: URLSearchParams): IncludeSet {

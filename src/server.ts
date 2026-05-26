@@ -11,13 +11,13 @@ import { HttpProblem, badRequest, notFound, tooManyRequests, unauthorized } from
 import { sendJson, sendProblem, type CachePolicy } from './http/response.ts';
 import { RateLimiter } from './http/ratelimit.ts';
 import { Metrics } from './http/metrics.ts';
-import { parseCatalogQuery, parseInclude } from './routes/parse.ts';
+import { parseCatalogQuery, parseInclude, parseDimensions } from './routes/parse.ts';
 import * as serialize from './routes/serialize.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const ANON_RATE = Number(process.env.RATE_LIMIT ?? 120); // req/min/IP
 const TOKEN_RATE = Number(process.env.PRIVATE_RATE_LIMIT ?? 600); // req/min/token
-const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.3.0';
+const SERVICE_VERSION = process.env.SERVICE_VERSION ?? '0.4.0';
 const STARTED_AT = new Date().toISOString();
 
 // Static demo SPA lives at <repo>/public/demo (baked into the image).
@@ -212,7 +212,7 @@ async function handle(ctx: Ctx): Promise<void> {
   if (pub) {
     const id = decodeURIComponent(pub[1]!);
     const sub = pub[2];
-    const rec = await provider.getInstrument(id);
+    const rec = await provider.getInstrument(id, parseDimensions(params));
     if (!rec) throw notFound(`Инструмент ${id} не найден.`);
     const tz = displayTz(params);
 

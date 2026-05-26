@@ -1,4 +1,8 @@
-import type { InstrumentRecord } from '../domain/types.ts';
+import type { InstrumentRecord, MarginProfile } from '../domain/types.ts';
+
+// Margin fields the provider injects (margin_mode + initial/maintenance/hedged)
+// so fixtures only declare the base rate/leverage/tiers.
+type MarginSeed = Omit<MarginProfile, 'margin_mode' | 'initial_margin' | 'maintenance_margin' | 'hedged_margin'>;
 
 // A fixture declares its instrument record plus time-relative offsets. The
 // provider materializes the actual RFC 3339 timestamps at request time so demo
@@ -12,9 +16,10 @@ export interface FixtureTiming {
 
 export interface FixtureSeed {
   timing: FixtureTiming;
-  record: Omit<InstrumentRecord, 'freshness' | 'quote' | 'schedule'> & {
+  record: Omit<InstrumentRecord, 'freshness' | 'quote' | 'schedule' | 'execution' | 'margin' | 'account_type' | 'platform'> & {
     quote: Omit<InstrumentRecord['quote'], 'last_quote_at'>;
     schedule: Omit<InstrumentRecord['schedule'], 'next_open_at' | 'next_close_at' | 'schedule_updated_at'>;
+    margin: MarginSeed;
   };
 }
 

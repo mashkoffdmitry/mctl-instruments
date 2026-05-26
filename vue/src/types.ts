@@ -42,8 +42,31 @@ export interface CatalogRow {
   status: StatusBlock;
   quote?: QuoteBlock;
   margin_summary?: { margin_model: string; margin_rate_from: string; max_leverage_from: string };
-  volume_summary: { min_volume: string; volume_step: string };
+  volume_summary: { min_volume: string; max_volume: string; volume_step: string };
+  contract_size: string;
+  costs_summary: { commission: string; commission_currency: string; swap_long: string; swap_short: string };
   schedule_summary: { next_close_at: string | null; display_timezone: string };
+}
+
+export interface Execution {
+  execution_mode: string;
+  filling_modes: string[];
+  stop_level: string;
+  freeze_level: string;
+  limit_stop_orders_allowed: boolean;
+  short_selling: boolean;
+}
+
+export interface MarginBlock {
+  margin_model: string;
+  margin_mode: string;
+  margin_currency: string;
+  margin_rate_from: string;
+  max_leverage_from: string;
+  initial_margin: { basis: string; value: string | null };
+  maintenance_margin: { basis: string; value: string | null };
+  hedged_margin: string;
+  tiers: { up_to_notional?: string; up_to_volume?: string; margin_rate: string; max_leverage: string }[];
 }
 
 export interface InstrumentDetail {
@@ -67,15 +90,13 @@ export interface InstrumentDetail {
     commission: { amount: string; currency: string; basis: string };
     swaps: { swap_type: string; long: string; short: string; triple_swap_day: string };
   };
-  margin: {
-    margin_model: string;
-    margin_rate_from: string;
-    max_leverage_from: string;
-    tiers: { up_to_notional?: string; up_to_volume?: string; margin_rate: string; max_leverage: string }[];
-  };
+  margin: MarginBlock;
+  execution: Execution;
   schedule: SchedulePayload;
   lifecycle: { expiry_or_rollover_date: string | null };
   tags: string[];
+  account_type: string | null;
+  platform: string | null;
   freshness: { config_updated_at: string; quote_updated_at: string; schedule_updated_at: string };
   disclosures: { spread: string; financing: string };
 }

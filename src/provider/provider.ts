@@ -1,13 +1,21 @@
 import type {
   AccountConditions,
+  AccountType,
   AssetClass,
   Category,
   InstrumentRecord,
+  Platform,
   QuoteMode,
   TradingStatus,
 } from '../domain/types.ts';
 
-export interface CatalogQuery {
+// Dimensions that vary the returned conditions (account/platform).
+export interface Dimensions {
+  account_type?: AccountType;
+  platform?: Platform;
+}
+
+export interface CatalogQuery extends Dimensions {
   search?: string;
   asset_class?: AssetClass;
   category?: Category;
@@ -39,7 +47,7 @@ export interface FilterReference {
 // behind the same interface without touching the routes.
 export interface Provider {
   listCatalog(query: CatalogQuery): Promise<CatalogPage>;
-  getInstrument(id: string): Promise<InstrumentRecord | null>;
+  getInstrument(id: string, dims?: Dimensions): Promise<InstrumentRecord | null>;
   getFilterReference(): FilterReference;
   // Bearer-scoped personalized conditions (null when instrument unknown).
   getAccountConditions(id: string, token: string): Promise<AccountConditions | null>;

@@ -19,7 +19,18 @@ export function catalogRow(rec: InstrumentRecord, include: IncludeSet, displayTz
       session_state: rec.state.session_state,
       status_reason_code: rec.state.status_reason_code,
     },
-    volume_summary: { min_volume: rec.trading_conditions.min_volume, volume_step: rec.trading_conditions.volume_step },
+    volume_summary: {
+      min_volume: rec.trading_conditions.min_volume,
+      max_volume: rec.trading_conditions.max_volume,
+      volume_step: rec.trading_conditions.volume_step,
+    },
+    contract_size: rec.spec.contract_size,
+    costs_summary: {
+      commission: rec.trading_conditions.commission.amount,
+      commission_currency: rec.trading_conditions.commission.currency,
+      swap_long: rec.trading_conditions.swaps.long,
+      swap_short: rec.trading_conditions.swaps.short,
+    },
     schedule_summary: { next_close_at: rec.schedule.next_close_at, display_timezone: displayTz },
   };
   if (include.quote) {
@@ -58,9 +69,12 @@ export function detail(rec: InstrumentRecord) {
     spec: rec.spec,
     trading_conditions: rec.trading_conditions,
     margin: rec.margin,
+    execution: rec.execution,
     schedule: rec.schedule,
     lifecycle: { expiry_or_rollover_date: rec.expiry_or_rollover_date },
     tags: rec.tags,
+    account_type: rec.account_type ?? null,
+    platform: rec.platform ?? null,
     freshness: rec.freshness,
     disclosures: rec.disclosures,
   };

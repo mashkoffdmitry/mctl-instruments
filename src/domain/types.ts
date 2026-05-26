@@ -33,6 +33,16 @@ export type CommissionBasis = 'per_lot_round_turn' | 'per_lot_per_side' | 'perce
 export type SwapType = 'points' | 'percent' | 'money';
 export type Weekday = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 
+// MetaTrader-style execution + risk descriptors.
+export type ExecutionMode = 'market' | 'instant' | 'exchange' | 'request';
+export type FillingMode = 'fok' | 'ioc' | 'return';
+export type MarginMode = 'forex' | 'cfd' | 'cfd_leverage' | 'futures';
+export type MarginBasis = 'auto' | 'fixed';
+
+// Cross-cutting dimensions that vary the returned conditions.
+export type AccountType = 'standard' | 'raw' | 'pro';
+export type Platform = 'mt5' | 'mt4' | 'native';
+
 export interface TradingState {
   trading_status: TradingStatus;
   session_state: SessionState;
@@ -118,10 +128,24 @@ export interface MarginTier {
 
 export interface MarginProfile {
   margin_model: MarginModel;
+  margin_mode: MarginMode;
   margin_currency?: string;
   margin_rate_from: string;
   max_leverage_from: string;
+  initial_margin: { basis: MarginBasis; value: string | null };
+  maintenance_margin: { basis: MarginBasis; value: string | null };
+  hedged_margin: string; // e.g. "50%" or "0"
   tiers: MarginTier[];
+}
+
+// MetaTrader-style execution / order restrictions (mostly static spec).
+export interface Execution {
+  execution_mode: ExecutionMode;
+  filling_modes: FillingMode[];
+  stop_level: string; // points
+  freeze_level: string; // points
+  limit_stop_orders_allowed: boolean;
+  short_selling: boolean;
 }
 
 export interface SessionInterval {
@@ -176,11 +200,15 @@ export interface InstrumentRecord {
   spec: InstrumentSpec;
   trading_conditions: TradingConditions;
   margin: MarginProfile;
+  execution: Execution;
   schedule: SessionCalendar;
   expiry_or_rollover_date: string | null;
   freshness: FreshnessMeta;
   disclosures: Disclosures;
   popularity: number;
+  // Dimension the record was resolved for (set by the provider overlay).
+  account_type?: AccountType;
+  platform?: Platform;
 }
 
 // ---- account-specific overrides (private) ----

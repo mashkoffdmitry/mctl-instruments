@@ -13,6 +13,8 @@ export interface CatalogParams {
   category?: string;
   status?: string;
   tradable_now?: boolean;
+  account_type?: string;
+  platform?: string;
   limit?: number;
   cursor?: string;
   sort?: string;
@@ -53,8 +55,10 @@ export function createApi(apiBase: string, locale: string) {
       }
       return getJson<Envelope<CatalogRow[]>>(`${base}/v1/public/instruments?${qs.toString()}`, locale);
     },
-    getDetail(id: string, tz: string): Promise<Envelope<InstrumentDetail>> {
+    getDetail(id: string, tz: string, dims: { account_type?: string; platform?: string } = {}): Promise<Envelope<InstrumentDetail>> {
       const qs = new URLSearchParams({ tz, locale });
+      if (dims.account_type) qs.set('account_type', dims.account_type);
+      if (dims.platform) qs.set('platform', dims.platform);
       return getJson<Envelope<InstrumentDetail>>(
         `${base}/v1/public/instruments/${encodeURIComponent(id)}?${qs.toString()}`,
         locale,

@@ -246,18 +246,18 @@ const themeClass = computed(() => (props.theme === 'auto' ? '' : `mi-theme-${pro
             @keydown.enter="select(row.instrument_id)"
             @keydown.space.prevent="select(row.instrument_id)"
           >
-            <td>
+            <td class="mi-cell-symbol">
               <strong class="mi-mono">{{ row.display_symbol }}</strong>
               <span class="mi-row__name">{{ row.display_name }}</span>
             </td>
-            <td class="mi-col-class"><span class="mi-chip mi-chip--sm" :style="{ color: assetAccent(row.asset_class) }">{{ row.asset_class }}</span></td>
-            <td><StateBadge :state="rowUiState(row)" :label="stateLabel(t, rowUiState(row))" /></td>
-            <td class="mi-num mi-mono">{{ row.quote ? fmt.num(row.quote.current_spread_pips) : '—' }}</td>
-            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.costs_summary.commission) }}</td>
-            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.volume_summary.min_volume) }}</td>
-            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.contract_size) }}</td>
-            <td class="mi-num mi-mono mi-col-sec">{{ fmt.num(row.costs_summary.swap_long) }} / {{ fmt.num(row.costs_summary.swap_short) }}</td>
-            <td class="mi-num mi-mono">{{ row.margin_summary?.max_leverage_from ?? '—' }}</td>
+            <td class="mi-col-class" :data-label="t('col.class')"><span class="mi-chip mi-chip--sm" :style="{ color: assetAccent(row.asset_class) }">{{ row.asset_class }}</span></td>
+            <td :data-label="t('col.status')"><StateBadge :state="rowUiState(row)" :label="stateLabel(t, rowUiState(row))" /></td>
+            <td class="mi-num mi-mono" :data-label="t('col.spread')">{{ row.quote ? fmt.num(row.quote.current_spread_pips) : '—' }}</td>
+            <td class="mi-num mi-mono mi-col-sec" :data-label="t('col.commission')">{{ fmt.num(row.costs_summary.commission) }}</td>
+            <td class="mi-num mi-mono mi-col-sec" :data-label="t('col.min')">{{ fmt.num(row.volume_summary.min_volume) }}</td>
+            <td class="mi-num mi-mono mi-col-sec" :data-label="t('col.contract')">{{ fmt.num(row.contract_size) }}</td>
+            <td class="mi-num mi-mono mi-col-sec" :data-label="t('col.swap')">{{ fmt.num(row.costs_summary.swap_long) }} / {{ fmt.num(row.costs_summary.swap_short) }}</td>
+            <td class="mi-num mi-mono" :data-label="t('col.leverage')">{{ row.margin_summary?.max_leverage_from ?? '—' }}</td>
           </tr>
         </tbody>
       </table>

@@ -6,6 +6,8 @@ import { serveStatic } from './http/static.ts';
 import { FixtureProvider } from './provider/fixture-provider.ts';
 import { CompositeProvider } from './provider/composite.ts';
 import { BinanceClient } from './provider/binance.ts';
+import { TwelveDataClient } from './provider/twelvedata.ts';
+import type { LiveQuoteSource } from './provider/source.ts';
 import type { Provider } from './provider/provider.ts';
 import { HttpProblem, badRequest, notFound, tooManyRequests, unauthorized } from './http/problem.ts';
 import { sendJson, sendProblem, type CachePolicy } from './http/response.ts';
@@ -25,10 +27,16 @@ const STARTED_AT = new Date().toISOString();
 const DEMO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'demo');
 
 const UPSTREAM_BINANCE = (process.env.UPSTREAM_BINANCE ?? 'true') !== 'false';
-const binance = new BinanceClient();
+const UPSTREAM_TWELVEDATA = (process.env.UPSTREAM_TWELVEDATA ?? 'true') !== 'false';
 const fixtureProvider = new FixtureProvider();
-const provider: Provider = UPSTREAM_BINANCE ? new CompositeProvider(fixtureProvider, binance) : fixtureProvider;
-if (UPSTREAM_BINANCE) binance.start();
+// Live sources, in precedence order (crypto via Binance, everything else via
+// Twelve Data). Twelve Data is inert without an API key. Asset classes with no
+// supporting source fall back to fixture data.
+const sources: LiveQuoteSource[] = [];
+if (UPSTREAM_BINANCE) sources.push(new BinanceClient());
+if (UPSTREAM_TWELVEDATA && TwelveDataClient.enabled()) sources.push(new TwelveDataClient());
+const provider: Provider = sources.length > 0 ? new CompositeProvider(fixtureProvider, sources) : fixtureProvider;
+for (const s of sources) s.start();
 
 // Optional: periodically push the full public catalog to the edge worker (R2).
 // No-op unless both env vars are set (the worker layer is optional).
@@ -122,7 +130,7 @@ async function handle(ctx: Ctx): Promise<void> {
     return;
   }
   if (path === '/metrics') {
-    const text = await metrics.render({ version: SERVICE_VERSION, provider, binance: UPSTREAM_BINANCE ? binance : null, nowMs: Date.now() });
+    const text = await metrics.render({ version: SERVICE_VERSION, provider, sources, nowMs: Date.now() });
     res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8', 'cache-control': 'no-store' });
     res.end(text);
     return;
@@ -135,8 +143,8 @@ async function handle(ctx: Ctx): Promise<void> {
         service: 'mctl-instruments',
         version: SERVICE_VERSION,
         started_at: STARTED_AT,
-        provider: UPSTREAM_BINANCE ? 'composite(fixture+binance)' : 'fixture',
-        upstream: UPSTREAM_BINANCE ? binance.status() : null,
+        provider: sources.length > 0 ? `composite(fixture+${sources.length} live)` : 'fixture',
+        upstream: sources.map((s) => s.status()),
       },
       cache: { kind: 'no-store' },
     });

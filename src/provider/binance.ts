@@ -3,11 +3,8 @@
 // latest bid/ask. If Binance is unreachable (egress blocked, region block,
 // outage) the cache simply goes stale and callers fall back to fixtures.
 
-export interface LiveQuote {
-  bid: string;
-  ask: string;
-  fetchedAtMs: number;
-}
+import type { LiveQuote, LiveQuoteSource, SourceStatus } from './source.ts';
+import type { QuoteMode } from '../domain/types.ts';
 
 // instrument_id → Binance symbol.
 const SYMBOL_MAP: Record<string, string> = {
@@ -20,7 +17,11 @@ const POLL_MS = Number(process.env.BINANCE_POLL_MS ?? 5000);
 // A quote older than this is treated as unavailable (callers fall back).
 const FRESH_MS = Number(process.env.BINANCE_FRESH_MS ?? 30_000);
 
-export class BinanceClient {
+export class BinanceClient implements LiveQuoteSource {
+  readonly label = 'Binance (live)';
+  readonly quoteMode: QuoteMode = 'real_time';
+  readonly delaySeconds = 0;
+
   private readonly cache = new Map<string, LiveQuote>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastError: string | null = null;
@@ -37,6 +38,10 @@ export class BinanceClient {
     this.timer = null;
   }
 
+  supports(instrumentId: string): boolean {
+    return instrumentId in SYMBOL_MAP;
+  }
+
   /** Fresh live quote for an instrument, or null when unavailable/stale. */
   getQuote(instrumentId: string): LiveQuote | null {
     const q = this.cache.get(instrumentId);
@@ -45,8 +50,8 @@ export class BinanceClient {
     return q;
   }
 
-  status(): { symbols: string[]; cached: number; last_error: string | null } {
-    return { symbols: Object.values(SYMBOL_MAP), cached: this.cache.size, last_error: this.lastError };
+  status(): SourceStatus {
+    return { label: this.label, symbols: Object.values(SYMBOL_MAP), cached: this.cache.size, last_error: this.lastError };
   }
 
   private async refresh(): Promise<void> {
@@ -71,6 +76,7 @@ export class BinanceClient {
   }
 }
 
+/** @deprecated prefer source.supports(); kept for back-compat. */
 export function isUpstreamSymbol(instrumentId: string): boolean {
   return instrumentId in SYMBOL_MAP;
 }
